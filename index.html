@@ -1,0 +1,2127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Dandelion Wish</title>
+  <meta name="description" content="Type a wish, blow, and watch it drift away on dandelion seeds.">
+  <meta name="theme-color" content="#6f78bd">
+
+  <!-- What shows when the link is shared in a chat -->
+  <meta property="og:title" content="Dandelion Wish">
+  <meta property="og:description" content="Type a wish, blow, and watch it drift away.">
+
+  <!-- A tiny dandelion icon for the browser tab, drawn in SVG -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232b3a73'/%3E%3Cg stroke='%23fff' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M32 26v32' stroke='%2390b060' stroke-width='3'/%3E%3Cpath d='M32 24 32 8M32 24 46 12M32 24 50 26M32 24 46 38M32 24 18 38M32 24 14 26M32 24 18 12'/%3E%3C/g%3E%3Ccircle cx='32' cy='24' r='4' fill='%23c99a55'/%3E%3C/svg%3E">
+
+  <!-- Fonts: Cormorant Garamond (gentle serif for headings) + Nunito (soft, readable sans) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+/* ============================================================
+   Dandelion Wish — styles
+   The canvas fills the screen; text and buttons float on top.
+   ============================================================ */
+
+/* Colours and fonts live here so they're easy to change in one place */
+:root {
+  --text-soft: rgba(255, 252, 245, 0.95);
+  --text-shadow: 0 1px 14px rgba(50, 30, 90, 0.55), 0 0 2px rgba(50, 30, 90, 0.35);
+  --ink: #3d3352;                         /* dark plum text on light cards */
+  --glass: rgba(255, 255, 255, 0.16);     /* see-through "frosted glass" */
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --button: rgba(255, 251, 245, 0.92);
+  --font-heading: "Cormorant Garamond", Georgia, serif;
+  --font-body: "Nunito", system-ui, sans-serif;
+  --slow: 1.2s cubic-bezier(0.22, 0.61, 0.36, 1); /* a gentle "ease out" */
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;          /* no scrollbars — it's a single scene */
+  background: #6f78bd;       /* dusk periwinkle, shown for a split second before the canvas paints */
+  font-family: var(--font-body);
+  color: var(--text-soft);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The canvas sits behind everything and stretches to the window */
+#scene {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+/* A see-through layer for text; clicks pass through it, except on
+   the things that switch them back on (inputs and buttons). */
+.overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+.overlay input,
+.overlay button { pointer-events: auto; }
+
+/* ---------- Top: title + wish input ---------- */
+.top {
+  position: absolute;
+  top: max(6vh, env(safe-area-inset-top));
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 0 16px;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-style: italic;
+  font-size: clamp(2.1rem, 6vw, 3.4rem);
+  letter-spacing: 0.02em;
+  text-align: center;
+  text-shadow: var(--text-shadow);
+  transition: opacity var(--slow), transform var(--slow);
+  animation: fadeIn 2.4s ease-out both;
+}
+
+.wish-box {
+  position: relative;
+  width: min(420px, 100%);
+  transition: opacity var(--slow), transform var(--slow);
+  animation: fadeIn 2.4s 0.4s ease-out both;
+}
+
+#wish {
+  width: 100%;
+  padding: 13px 64px 13px 22px;
+  font: 400 1rem var(--font-body);   /* 16px stops phones from zooming in */
+  color: #fff;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  outline: none;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 24px rgba(40, 30, 80, 0.18);
+  text-shadow: 0 1px 6px rgba(50, 30, 90, 0.4);
+  transition: border-color 0.4s, box-shadow 0.4s, background 0.4s;
+}
+#wish::placeholder { color: rgba(255, 255, 255, 0.8); }
+#wish:focus {
+  background: rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 0 4px rgba(255, 236, 200, 0.25), 0 4px 24px rgba(40, 30, 80, 0.18);
+}
+
+.counter {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.75rem;
+  opacity: 0.75;
+  text-shadow: var(--text-shadow);
+}
+
+/* Things drift away gently instead of disappearing */
+.away {
+  opacity: 0 !important;
+  transform: translateY(-10px);
+  pointer-events: none !important;
+}
+.away * { pointer-events: none !important; }
+
+/* ---------- Bottom: hints and buttons ---------- */
+.bottom {
+  position: absolute;
+  top: 71%;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  text-align: center;
+}
+
+.hint {
+  margin: 0;
+  min-height: 1.5em;
+  font-size: 1.05rem;
+  font-weight: 600;
+  text-shadow: var(--text-shadow);
+  transition: opacity 0.8s;
+}
+.hint:empty { opacity: 0; }
+
+.note {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.9;
+  text-shadow: var(--text-shadow);
+}
+.note:empty { display: none; }
+
+.end-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  animation: fadeIn 1.6s ease-out both;
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  font: 700 0.98rem var(--font-body);
+  color: var(--ink);
+  background: var(--button);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 12px 22px;
+  min-height: 44px;              /* big enough for a fingertip */
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(40, 30, 80, 0.2);
+  transition: transform 0.3s, box-shadow 0.3s, background 0.3s;
+}
+.btn:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(40, 30, 80, 0.28); }
+.btn:focus-visible { outline: 3px solid rgba(255, 226, 170, 0.9); outline-offset: 2px; }
+
+.btn.ghost {
+  color: #fff;
+  background: var(--glass);
+  border-color: var(--glass-border);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  text-shadow: 0 1px 6px rgba(50, 30, 90, 0.4);
+}
+.btn.ghost.dark {                 /* ghost button on a light card */
+  color: var(--ink);
+  background: transparent;
+  border-color: rgba(61, 51, 82, 0.3);
+  text-shadow: none;
+  box-shadow: none;
+}
+.btn.small { padding: 8px 16px; min-height: 40px; font-size: 0.9rem; }
+
+[hidden] { display: none !important; }
+
+/* ---------- Pop-up cards (mic note and share) ---------- */
+.card {
+  width: min(380px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  overflow: auto;
+  padding: 26px 24px 22px;
+  border: 0;
+  border-radius: 22px;
+  color: var(--ink);
+  background: rgba(255, 251, 245, 0.97);
+  box-shadow: 0 20px 60px rgba(30, 20, 60, 0.4);
+  text-align: center;
+}
+.card[open] { animation: rise 0.6s ease-out both; }
+.card::backdrop { background: rgba(30, 26, 70, 0.35); backdrop-filter: blur(3px); }
+.card h2 {
+  margin: 0 0 10px;
+  font-family: var(--font-heading);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 1.9rem;
+}
+.card p { margin: 0 0 10px; line-height: 1.5; }
+.card .small { font-size: 0.85rem; opacity: 0.8; }
+.card-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+.card .btn { background: #fff; box-shadow: 0 3px 12px rgba(40, 30, 80, 0.15); }
+.card .btn.primary { background: #5a4a86; color: #fff; }
+.card .btn.ghost.dark { background: transparent; box-shadow: none; }
+
+.share-card { width: min(420px, calc(100% - 32px)); }
+.share-preview {
+  display: block;
+  max-width: 100%;
+  height: min(46vh, 440px);
+  margin: 6px auto 14px;
+  border-radius: 14px;
+  background: #d9cde6;
+  box-shadow: 0 8px 30px rgba(40, 30, 80, 0.25);
+  object-fit: cover;
+}
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.toggle input { width: 18px; height: 18px; accent-color: #5a4a86; }
+.status { min-height: 1.2em; margin: 10px 0 0 !important; }
+.close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink);
+  font-size: 1.6rem;
+  cursor: pointer;
+}
+.close:focus-visible { outline: 3px solid rgba(90, 74, 134, 0.5); }
+
+/* Hidden on screen but still read out by screen readers */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Short screens (e.g. a phone turned sideways): tuck things closer */
+@media (max-height: 520px) {
+  .top { top: 3vh; gap: 8px; }
+  .title { font-size: 1.8rem; }
+  .bottom { top: auto; bottom: 4vh; }
+}
+
+/* Respect people who prefer less motion: fade only, no sliding */
+@media (prefers-reduced-motion: reduce) {
+  .title, .wish-box, .end-buttons, .card[open] { animation: none; }
+  .away { transform: none; }
+}
+
+</style>
+</head>
+<body>
+  <!-- The whole scene (sky, meadow, dandelions, flying seeds) is painted on this canvas -->
+  <canvas id="scene" aria-hidden="true"></canvas>
+
+  <!-- Text and controls float on top of the canvas -->
+  <main class="overlay">
+    <header class="top">
+      <h1 id="title" class="title">Make a wish.</h1>
+
+      <div id="wishBox" class="wish-box">
+        <label for="wish" class="visually-hidden">Your wish</label>
+        <input id="wish" type="text" maxlength="80" placeholder="I wish…" autocomplete="off" enterkeyhint="done">
+        <span id="counter" class="counter" aria-hidden="true">0 / 80</span>
+      </div>
+    </header>
+
+    <section class="bottom">
+      <p id="hint" class="hint" aria-live="polite"></p>
+      <button id="micBtn" class="btn ghost small" hidden>🎤 Blow into your microphone</button>
+      <p id="micNote" class="note" aria-live="polite"></p>
+
+      <div id="endButtons" class="end-buttons" hidden>
+        <button id="againBtn" class="btn">Make another wish</button>
+        <button id="shareBtn" class="btn ghost">Share</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- The friendly note we show before asking for the microphone -->
+  <dialog id="micDialog" class="card" aria-labelledby="micTitle">
+    <h2 id="micTitle">Blow to make your wish</h2>
+    <p>To feel your breath, this page listens to <strong>how loud</strong> your microphone is — nothing else.</p>
+    <p class="small">No sound is recorded, saved or sent anywhere, and the mic switches off once your seeds have flown.</p>
+    <div class="card-buttons">
+      <button id="micAllow" class="btn primary">Turn on microphone</button>
+      <button id="micNotNow" class="btn ghost dark">Not now</button>
+    </div>
+  </dialog>
+
+  <!-- Share: a preview of the wish postcard, plus ways to share it -->
+  <dialog id="shareDialog" class="card share-card" aria-labelledby="shareTitle">
+    <h2 id="shareTitle">Your wish postcard</h2>
+    <img id="sharePreview" class="share-preview" alt="A postcard of the meadow with seeds flying away, saying “I made a wish”.">
+    <label class="toggle">
+      <input id="includeWish" type="checkbox">
+      <span>Include my wish on the postcard</span>
+    </label>
+    <div class="card-buttons">
+      <button id="shareNative" class="btn primary" hidden>Share…</button>
+      <button id="shareDownload" class="btn">Download image</button>
+      <button id="shareCopy" class="btn ghost dark">Copy link</button>
+    </div>
+    <p id="shareStatus" class="small status" aria-live="polite"></p>
+    <button id="shareClose" class="close" aria-label="Close">×</button>
+  </dialog>
+
+  <!-- The code, in small files. The order matters: each file uses the ones above it. -->
+  <script>
+/* ===== scene.js ===== */
+/* ============================================================
+   Dandelion Wish — scene.js: painting the dusk meadow
+   ------------------------------------------------------------
+   Everything you see is painted on one <canvas>, about 60 times
+   a second. Some parts never move (the sky, the far-away field),
+   so we paint those ONCE onto hidden "layer" canvases and just
+   copy them onto the screen each frame — that keeps phones fast.
+
+   Each frame, from back to front:
+     1. pastel sunset sky                     – pre-painted layer
+     2. a few faint stars
+     3. wispy pink clouds (drift very slowly) – pre-painted layer
+     4. forest line + a field full of white
+        dandelion puffs                       – pre-painted layer
+     5. a few bigger puffs that sway
+     6. middle grass (sways)
+     7. THE dandelion: glowing white line-art
+     8. tall front grass (sways)
+     9. big blurry puffs right in front of the "camera"
+    10. floating light specks
+    11. a soft pink glow over everything
+
+   This file only knows how to DRAW things. script.js decides
+   what happens and calls these functions every frame.
+   ============================================================ */
+
+const canvas = document.getElementById("scene");
+const ctx = canvas.getContext("2d");
+
+// Does the visitor prefer less motion? If so everything sways much less.
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const MOTION = reduceMotion ? 0.25 : 1;
+
+// Screen size in CSS pixels, the pixel ratio, and where the horizon sits.
+let W = 0, H = 0, DPR = 1, HORIZON = 0;
+let SUN = { x: 0, y: 0 };
+
+/* ------------------------------------------------------------
+   Little helpers
+   ------------------------------------------------------------ */
+const lerp = (a, b, t) => a + (b - a) * t;            // blend between a and b
+const rand = (min, max) => min + Math.random() * (max - min);
+const TAU = Math.PI * 2;                               // a full circle in radians
+
+// Make a hidden canvas the size of the screen and let `paint` draw on it.
+function makeLayer(paint, width = W, height = H) {
+  const layer = document.createElement("canvas");
+  layer.width = Math.round(width * DPR);
+  layer.height = Math.round(height * DPR);
+  const g = layer.getContext("2d");
+  g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  paint(g);
+  return layer;
+}
+
+// Draw a soft-edged ellipse. We use a shadow to get the blur because it
+// works in every browser: the real shape is drawn far off to the left,
+// and only its blurry shadow is shifted back into view.
+function softEllipse(g, x, y, rx, ry, colour, blur) {
+  const OFF = 10000;
+  g.save();
+  g.shadowColor = colour;
+  g.shadowBlur = blur * DPR;          // shadow sizes ignore scaling, so use real pixels
+  g.shadowOffsetX = OFF * DPR;
+  g.fillStyle = colour;
+  g.beginPath();
+  g.ellipse(x - OFF, y, rx, ry, 0, 0, TAU);
+  g.fill();
+  g.restore();
+}
+
+// Extra breeze from moving the mouse (set in script.js, slowly fades to 0).
+const breeze = { mouse: 0 };
+
+// The gentle breeze that every blade and flower shares, so the meadow moves together.
+function wind(time) {
+  return (Math.sin(time / 5200) * 0.035 + Math.sin(time / 2300) * 0.015) * MOTION + breeze.mouse * 0.03;
+}
+
+/* ============================================================
+   1. SKY — a soft dusk: periwinkle at the top, lavender, then
+   pink and coral where the sun has just set behind the forest.
+   ============================================================ */
+function paintSky(g) {
+  const sky = g.createLinearGradient(0, 0, 0, HORIZON);
+  sky.addColorStop(0.00, "#6f78bd");  // periwinkle
+  sky.addColorStop(0.40, "#9a8fcc");  // lavender
+  sky.addColorStop(0.68, "#c39bcb");  // mauve
+  sky.addColorStop(0.84, "#e79cb4");  // pink
+  sky.addColorStop(0.95, "#f4a5a2");  // coral
+  sky.addColorStop(1.00, "#f8c4ae");  // pale peach at the horizon
+  g.fillStyle = sky;
+  g.fillRect(0, 0, W, H);
+
+  const big = Math.max(W, H);
+  // A pink glow where the sun went down…
+  const glow = g.createRadialGradient(SUN.x, SUN.y, 0, SUN.x, SUN.y, big * 0.5);
+  glow.addColorStop(0.00, "rgba(255, 150, 150, 0.75)");
+  glow.addColorStop(0.25, "rgba(255, 160, 170, 0.30)");
+  glow.addColorStop(1.00, "rgba(255, 170, 190, 0)");
+  g.fillStyle = glow;
+  g.fillRect(0, 0, W, H);
+
+  // …and a little leftover daylight in the top-left corner.
+  const light = g.createRadialGradient(0, 0, 0, 0, 0, big * 0.6);
+  light.addColorStop(0, "rgba(255, 236, 245, 0.45)");
+  light.addColorStop(1, "rgba(255, 236, 245, 0)");
+  g.fillStyle = light;
+  g.fillRect(0, 0, W, H);
+}
+
+/* ============================================================
+   2. STARS — just a few faint ones, high up, the first stars
+   of the evening. They twinkle slowly.
+   ============================================================ */
+let stars = [];
+
+function buildStars() {
+  stars = [];
+  const count = Math.round((W * H) / 30000);
+  for (let i = 0; i < count; i++) {
+    const y = Math.pow(Math.random(), 1.8) * HORIZON * 0.5; // mostly near the top
+    stars.push({ x: rand(0, W), y, r: rand(0.4, 1.1), phase: rand(0, TAU), speed: rand(0.5, 1.2) });
+  }
+}
+
+function drawStars(time) {
+  for (const s of stars) {
+    const twinkle = 0.5 + 0.5 * Math.sin(time / 800 * s.speed * MOTION + s.phase);
+    ctx.fillStyle = `rgba(255, 250, 255, ${0.55 * twinkle})`;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, TAU);
+    ctx.fill();
+  }
+}
+
+/* ============================================================
+   3. CLOUDS — thin, wispy streaks. Each puff is two blurry
+   ellipses: a lilac-grey top and a pink, sun-lit underside.
+   Wisps close to the sunset glow are brighter coral.
+   ============================================================ */
+function paintClouds(g) {
+  const bands = 7;
+  for (let b = 0; b < bands; b++) {
+    const bandY = lerp(HORIZON * 0.12, HORIZON * 0.85, b / (bands - 1)) + rand(-20, 20);
+    const nearHorizon = bandY / HORIZON;                  // 0 at the top … 1 at the horizon
+    const scale = lerp(1.1, 0.6, nearHorizon);            // clouds look smaller further away
+    let x = rand(-150, 0);
+    while (x < W + 150) {
+      const rx = rand(50, 150) * scale;
+      const ry = rand(3, 9) * scale;                       // thin = wispy
+      const y = bandY + rand(-10, 10) * scale;
+      const nearSun = 1 - Math.min(1, Math.hypot(x - SUN.x, y - SUN.y) / (Math.max(W, H) * 0.6));
+      const warm = Math.min(1, nearHorizon * 0.6 + nearSun * 0.7);
+
+      // Lilac-grey top
+      softEllipse(g, x, y - ry * 0.5, rx, ry, `rgba(118, 108, 168, ${lerp(0.35, 0.2, warm)})`, 8 * scale);
+      // Pink → coral underside
+      softEllipse(g, x + rx * 0.1, y + ry * 0.3, rx * 0.85, ry * 0.6,
+        `rgba(255, ${Math.round(lerp(160, 125, warm))}, ${Math.round(lerp(185, 135, warm))}, ${lerp(0.45, 0.75, warm)})`, 7 * scale);
+
+      x += rx * rand(0.8, 1.8);
+      if (Math.random() < 0.3) x += rand(80, 260) * scale; // gaps so the sky peeks through
+    }
+  }
+}
+
+/* ============================================================
+   4. FOREST LINE + A FIELD FULL OF DANDELION PUFFS — painted once.
+   ============================================================ */
+
+/* One fluffy white dandelion "clock" seen from a distance:
+   a soft white ball, a fuzzy edge, and a small brownish middle. */
+function drawPuff(g, x, y, r, detail = true) {
+  const ball = g.createRadialGradient(x - r * 0.2, y - r * 0.25, 0, x, y, r);
+  ball.addColorStop(0.0, "rgba(255, 255, 252, 0.98)");
+  ball.addColorStop(0.7, "rgba(246, 240, 238, 0.92)");
+  ball.addColorStop(0.92, "rgba(232, 222, 226, 0.6)");
+  ball.addColorStop(1.0, "rgba(232, 222, 226, 0)");
+  g.fillStyle = ball;
+  g.beginPath();
+  g.arc(x, y, r, 0, TAU);
+  g.fill();
+
+  if (detail && r > 4) {
+    // Fuzzy edge: lots of tiny hairs sticking out all round.
+    g.strokeStyle = "rgba(255, 255, 255, 0.55)";
+    g.lineWidth = Math.max(0.4, r * 0.03);
+    g.beginPath();
+    const hairs = Math.round(r * 2.2);
+    for (let i = 0; i < hairs; i++) {
+      const a = (i / hairs) * TAU + rand(-0.05, 0.05);
+      const r1 = r * rand(0.7, 0.85), r2 = r * rand(1.0, 1.12);
+      g.moveTo(x + Math.cos(a) * r1, y + Math.sin(a) * r1);
+      g.lineTo(x + Math.cos(a) * r2, y + Math.sin(a) * r2);
+    }
+    g.stroke();
+    // The little seed-centre showing through
+    g.fillStyle = "rgba(150, 112, 92, 0.55)";
+    g.beginPath();
+    g.arc(x + r * 0.05, y + r * 0.1, r * 0.17, 0, TAU);
+    g.fill();
+  }
+}
+
+function paintMeadow(g) {
+  // Forest along the horizon: a hazy blue-green far row, then a dark green near row.
+  // Round tree crowns mixed with pointed fir trees.
+  const rows = [
+    { height: 0.046, colour: "rgb(104, 126, 108)" },
+    { height: 0.034, colour: "rgb(40, 64, 42)" },
+  ];
+  for (const row of rows) {
+    g.fillStyle = row.colour;
+    g.fillRect(0, HORIZON - H * row.height * 0.4, W, H * row.height * 0.4 + 4);
+    let x = -20;
+    while (x < W + 20) {
+      const r = H * row.height * rand(0.16, 0.38);
+      const top = HORIZON - H * row.height * rand(0.4, 1);
+      g.beginPath();
+      if (Math.random() < 0.4) {
+        // fir tree: a narrow triangle
+        g.moveTo(x, top);
+        g.lineTo(x - r * 0.8, HORIZON);
+        g.lineTo(x + r * 0.8, HORIZON);
+        g.closePath();
+      } else {
+        g.arc(x, top + r, r, 0, TAU);
+        g.rect(x - r * 0.15, top + r, r * 0.3, HORIZON - top);
+      }
+      g.fill();
+      x += r * rand(0.5, 1.2);
+    }
+  }
+
+  // The field: hazy light green far away, rich green close up.
+  const field = g.createLinearGradient(0, HORIZON, 0, H);
+  field.addColorStop(0.00, "#8aa46a");
+  field.addColorStop(0.20, "#6a9446");
+  field.addColorStop(0.60, "#457a30");
+  field.addColorStop(1.00, "#26501f");
+  g.fillStyle = field;
+  g.fillRect(0, HORIZON, W, H - HORIZON);
+
+  // Pink haze where the field meets the forest.
+  const haze = g.createLinearGradient(0, HORIZON - H * 0.04, 0, HORIZON + H * 0.06);
+  haze.addColorStop(0, "rgba(240, 190, 200, 0)");
+  haze.addColorStop(0.45, "rgba(240, 190, 200, 0.35)");
+  haze.addColorStop(1, "rgba(240, 190, 200, 0)");
+  g.fillStyle = haze;
+  g.fillRect(0, HORIZON - H * 0.04, W, H * 0.1);
+
+  // Grass strokes and dandelion puffs, mixed together and painted from far
+  // to near, so closer grass can hide parts of farther puffs (gives depth).
+  const things = [];
+  for (let i = 0; i < Math.round(W * 2.4); i++) {
+    things.push({ kind: "grass", t: Math.pow(Math.random(), 0.8), x: rand(0, W) });
+  }
+  for (let i = 0; i < Math.round((W * H) / 1100); i++) {
+    things.push({ kind: "puff", t: Math.pow(Math.random(), 0.9), x: rand(-10, W + 10) });
+  }
+  things.sort((a, b) => a.t - b.t);
+
+  g.lineCap = "round";
+  for (const it of things) {
+    const t = it.t;                                    // 0 = horizon … 1 = bottom of screen
+    const y = lerp(HORIZON + 3, H + 10, t);
+    if (it.kind === "grass") {
+      const len = lerp(2, 40, t);
+      const light = Math.random() < 0.35;
+      g.strokeStyle = light
+        ? `rgba(${Math.round(lerp(190, 160, t))}, ${Math.round(lerp(210, 200, t))}, ${Math.round(lerp(140, 100, t))}, ${lerp(0.35, 0.6, t)})`
+        : `rgba(${Math.round(lerp(90, 34, t))}, ${Math.round(lerp(120, 82, t))}, ${Math.round(lerp(80, 34, t))}, ${lerp(0.35, 0.75, t)})`;
+      g.lineWidth = lerp(0.5, 1.8, t);
+      g.beginPath();
+      g.moveTo(it.x, y);
+      g.lineTo(it.x + rand(-0.3, 0.3) * len, y - len);
+      g.stroke();
+    } else {
+      const r = lerp(1, H * 0.034, Math.pow(t, 1.7));  // tiny far away, big up close
+      const stem = lerp(2, H * 0.09, t);
+      g.strokeStyle = `rgba(110, 150, 70, ${lerp(0.5, 0.9, t)})`;
+      g.lineWidth = lerp(0.4, 2, t);
+      g.beginPath();
+      g.moveTo(it.x, y);
+      g.lineTo(it.x + rand(-2, 2) * t, y + stem);
+      g.stroke();
+      drawPuff(g, it.x, y, r);
+    }
+  }
+}
+
+/* ============================================================
+   5–9. DANDELIONS
+   ------------------------------------------------------------
+   A dandelion head is a ball of seeds. To spread seeds evenly
+   over a ball we use the "Fibonacci sphere" trick: walk from the
+   top to the bottom in small steps while turning by the golden
+   angle each time. Each seed gets a 3D direction (x, y, z):
+   x/y say where it points on screen, z says whether it's in
+   front of (z > 0) or behind (z < 0) the head.
+   ============================================================ */
+function buildSeedSphere(count) {
+  const list = [];
+  const golden = Math.PI * (3 - Math.sqrt(5)); // ≈ 137.5°
+  for (let i = 0; i < count; i++) {
+    const y = 1 - ((i + 0.5) / count) * 2;     // from almost 1 (top) to almost -1 (bottom)
+    const ring = Math.sqrt(1 - y * y);
+    const angle = i * golden;
+    list.push({
+      dir: { x: Math.cos(angle) * ring, y: -y, z: Math.sin(angle) * ring },
+      length: rand(0.92, 1.05),                // tiny variety looks natural
+      tuftPhase: rand(0, TAU),                 // for a slight shimmer in the fluff
+      word: "",                                // a word from the wish (filled in by seeds.js)
+      attached: true,                          // false once it has blown away
+      delay: rand(0, 0.4),                     // when it appears during the regrow animation
+    });
+  }
+  list.sort((a, b) => a.dir.z - b.dir.z);       // paint back-to-front
+  return list;
+}
+
+/* The head is drawn as GLOWING LINE ART: thin white stalks radiating
+   from a bright centre, each ending in a little starburst tuft.
+   The glow comes from a canvas "shadow" in white, which makes every
+   line look like it's softly shining.
+
+   options:
+     grow     – 0…1, how far the regrow animation has got (1 = fully grown)
+     breath   – 0…1, how hard someone is blowing (makes the tufts tremble)
+     fullness – 0…1, share of seeds still attached (dims the centre glow) */
+function drawHead(g, seedList, cx, cy, radius, time, options = {}) {
+  const { grow = 1, breath = 0, fullness = 1 } = options;
+
+  // How grown is one particular seed? Each starts at its own moment (seed.delay).
+  const seedGrow = (seed) => {
+    const p = Math.min(1, Math.max(0, (grow - seed.delay) / 0.6));
+    return 1 - Math.pow(1 - p, 3); // "ease out": fast at first, gently settling
+  };
+
+  g.save();
+  g.lineCap = "round";
+  g.shadowColor = "rgba(255, 255, 255, 0.95)";
+
+  // Soft light behind the centre.
+  const glowAmount = Math.min(1, grow * 1.5) * (0.4 + 0.6 * fullness);
+  const halo = g.createRadialGradient(cx, cy, 0, cx, cy, radius * 1.1);
+  halo.addColorStop(0, `rgba(255, 255, 255, ${0.35 * glowAmount})`);
+  halo.addColorStop(1, "rgba(255, 255, 255, 0)");
+  g.fillStyle = halo;
+  g.beginPath();
+  g.arc(cx, cy, radius * 1.1, 0, TAU);
+  g.fill();
+
+  // Two passes: seeds at the back (fainter), then seeds at the front (brighter).
+  for (const front of [false, true]) {
+    const stalks = new Path2D();
+    const tufts = new Path2D();
+    const dots = new Path2D();
+    for (const seed of seedList) {
+      if (!seed.attached || (seed.dir.z >= 0) !== front) continue;
+      const p = seedGrow(seed);
+      if (p < 0.01) continue;
+      const { x, y } = seed.dir;
+      const reach = radius * seed.length * 0.78 * p;
+      const tipX = cx + x * reach, tipY = cy + y * reach;
+
+      stalks.moveTo(cx + x * radius * 0.08, cy + y * radius * 0.08);
+      stalks.lineTo(tipX, tipY);
+
+      // Starburst tuft: short hairs fanning outward (a full star if facing us).
+      const flat = Math.sqrt(x * x + y * y);
+      const spread = lerp(TAU, Math.PI * 1.15, flat);
+      const facing = Math.atan2(y, x);
+      const hairLen = radius * 0.2 * seed.length * p;
+      const shimmer = Math.sin(time / (900 - breath * 700) + seed.tuftPhase) * (0.06 + breath * 0.3) * MOTION;
+      const hairs = 11;
+      for (let h = 0; h < hairs; h++) {
+        const t = h / (hairs - 1);
+        const a = facing - spread / 2 + spread * t + shimmer;
+        const len = hairLen * (0.75 + 0.35 * Math.abs(Math.sin(seed.tuftPhase * 7 + h * 1.7)));
+        tufts.moveTo(tipX, tipY);
+        tufts.quadraticCurveTo(
+          tipX + Math.cos(a) * len * 0.5 + Math.cos(a + 1.57) * len * 0.12,
+          tipY + Math.sin(a) * len * 0.5 + Math.sin(a + 1.57) * len * 0.12,
+          tipX + Math.cos(a) * len, tipY + Math.sin(a) * len);
+      }
+      const dotR = Math.max(0.8, radius * (seed.word ? 0.02 : 0.013)) * p;
+      dots.moveTo(tipX + dotR, tipY);
+      dots.arc(tipX, tipY, dotR, 0, TAU);
+    }
+    const alpha = front ? 0.95 : 0.5;
+    g.shadowBlur = (front ? 7 : 4) * DPR;
+    g.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
+    g.lineWidth = Math.max(0.6, radius * 0.006);
+    g.stroke(stalks);
+    g.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+    g.lineWidth = Math.max(0.55, radius * 0.0055);
+    g.stroke(tufts);
+    g.fillStyle = `rgba(255, 255, 250, ${alpha})`;
+    g.fill(dots);
+
+    if (!front) {
+      // The glowing centre, between the back and front seeds.
+      const rc = radius * 0.12 * Math.min(1, grow * 2);
+      g.shadowBlur = 14 * DPR;
+      const core = g.createRadialGradient(cx, cy, 0, cx, cy, rc * 1.6);
+      core.addColorStop(0, "rgba(255, 255, 255, 1)");
+      core.addColorStop(0.45, "rgba(255, 252, 240, 0.9)");
+      core.addColorStop(1, "rgba(255, 250, 235, 0)");
+      g.fillStyle = core;
+      g.beginPath();
+      g.arc(cx, cy, rc * 1.6, 0, TAU);
+      g.fill();
+      // tiny dotted texture, like the seed pits
+      g.shadowBlur = 0;
+      g.fillStyle = "rgba(235, 228, 215, 0.8)";
+      for (let k = 1; k < 16; k++) {
+        const a = k * 2.39996, r = Math.sqrt(k / 16) * rc * 0.8;
+        g.beginPath();
+        g.arc(cx + Math.cos(a) * r, cy + Math.sin(a) * r, Math.max(0.4, rc * 0.06), 0, TAU);
+        g.fill();
+      }
+    }
+  }
+  g.restore();
+}
+
+/* --- The main dandelion --- */
+const SEED_COUNT = 60;
+let seeds = buildSeedSphere(SEED_COUNT);
+
+function mainLayout() {
+  return {
+    baseX: W / 2,
+    baseY: H + 6,                         // stem starts just below the screen edge
+    headX: W / 2,
+    headY: H * 0.46,
+    // A fifth of the width on phones, capped by height on wide screens.
+    radius: Math.min(W * 0.24, H * 0.16),
+  };
+}
+
+// A curved stem from (x0, y0) up to (x1, y1).
+// glowing = true draws it as shining white-gold line art (the main dandelion);
+// otherwise it's a normal green stem (the dandelions in the field).
+function stemPath(x0, y0, x1, y1, width) {
+  const curve = (x1 - x0) * 0.4 + width * 6;
+  const path = new Path2D();
+  path.moveTo(x0, y0);
+  path.bezierCurveTo(x0 - curve, lerp(y0, y1, 0.4), x1 + curve * 0.6, lerp(y0, y1, 0.75), x1, y1);
+  return path;
+}
+
+function drawStem(x0, y0, x1, y1, width, alpha, glowing = false) {
+  ctx.save();
+  ctx.lineCap = "round";
+  const path = stemPath(x0, y0, x1, y1, width);
+  if (glowing) {
+    ctx.shadowColor = "rgba(255, 226, 160, 0.95)";
+    ctx.shadowBlur = 10 * DPR;
+    ctx.strokeStyle = `rgba(255, 246, 220, ${alpha})`;
+    ctx.lineWidth = width;
+  } else {
+    ctx.strokeStyle = `rgba(112, 152, 72, ${alpha})`;
+    ctx.lineWidth = width;
+  }
+  ctx.stroke(path);
+  ctx.restore();
+}
+
+// Two glowing leaves curling out from the bottom of the main stem.
+function drawGlowLeaves(baseX, baseY, size) {
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.shadowColor = "rgba(255, 226, 160, 0.9)";
+  ctx.shadowBlur = 8 * DPR;
+  ctx.strokeStyle = "rgba(255, 244, 214, 0.85)";
+  ctx.lineWidth = Math.max(1, size * 0.012);
+  for (const side of [-1, 1]) {
+    // each leaf is an outline: up one edge, back down the other
+    const tipX = baseX + side * size * 0.9, tipY = baseY - size * 0.85;
+    ctx.beginPath();
+    ctx.moveTo(baseX, baseY);
+    ctx.quadraticCurveTo(baseX + side * size * 0.15, baseY - size * 0.7, tipX, tipY);
+    ctx.quadraticCurveTo(baseX + side * size * 0.55, baseY - size * 0.25, baseX + side * 4, baseY);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// How much the main flower is currently tilted (seeds.js needs this to know
+// exactly where a seed was when it breaks off).
+let mainSway = 0;
+
+function drawMainDandelion(time, options) {
+  const d = mainLayout();
+  // Idle sway: the whole flower tilts gently around the base of its stem.
+  // Blowing pushes it over a little.
+  const sway = wind(time) * 0.5 + Math.sin(time / 2100) * 0.012 * MOTION + (options.breath || 0) * 0.04;
+  mainSway = sway;
+
+  ctx.save();
+  ctx.translate(d.baseX, d.baseY);
+  ctx.rotate(sway);
+  ctx.translate(-d.baseX, -d.baseY);
+  drawStem(d.baseX, d.baseY, d.headX, d.headY + d.radius * 0.05, Math.max(1.6, d.radius * 0.018), 0.95, true);
+  drawGlowLeaves(d.baseX, H - H * 0.02, d.radius * 0.8);
+  drawHead(ctx, seeds, d.headX, d.headY, d.radius, time, options);
+  ctx.restore();
+}
+
+
+/* --- Bigger puffs in the field, and blurry ones up close ---
+   We draw one fluffy puff once onto a hidden canvas ("sprite"),
+   plus a blurry copy, then stamp them at different sizes. */
+let headSprite = null, blurSprite = null, spriteRadius = 0;
+let others = [];
+
+function buildOtherDandelions() {
+  spriteRadius = mainLayout().radius * 0.5;
+  const size = spriteRadius * 2.6;
+  headSprite = makeLayer((g) => drawPuff(g, size / 2, size / 2, spriteRadius), size, size);
+
+  // Blurry copy (for puffs very close to the "camera"), using the shadow trick.
+  blurSprite = document.createElement("canvas");
+  blurSprite.width = headSprite.width;
+  blurSprite.height = headSprite.height;
+  const b = blurSprite.getContext("2d");
+  const off = headSprite.width + 50;
+  b.shadowColor = "rgba(255, 252, 248, 0.95)";
+  b.shadowBlur = 8 * DPR;
+  b.shadowOffsetX = off;
+  b.drawImage(headSprite, -off, 0);
+
+  // x, y = where the puff is (as a fraction of the screen), s = size.
+  others = [
+    { x: 0.08, y: 0.74, s: 0.55, front: false },
+    { x: 0.24, y: 0.79, s: 0.7, front: false },
+    { x: 0.76, y: 0.77, s: 0.65, front: false },
+    { x: 0.93, y: 0.72, s: 0.5, front: false },
+    { x: 0.14, y: 0.88, s: 0.95, front: false },
+    { x: 0.85, y: 0.86, s: 1.0, front: false },
+    // right in front of the camera: big and blurry, half off-screen
+    { x: 0.03, y: 0.98, s: 1.2, front: true },
+    { x: 0.98, y: 0.97, s: 1.35, front: true },
+  ].map((o) => ({ ...o, phase: rand(0, TAU) }));
+}
+
+function drawOtherDandelion(o, time) {
+  const baseX = o.x * W + o.s * 10;
+  const baseY = H + 10;
+  const headX = o.x * W;
+  const headY = o.y * H;
+  const sway = wind(time) * (0.6 + o.s * 0.3) + Math.sin(time / 1900 + o.phase) * 0.012 * MOTION;
+
+  ctx.save();
+  ctx.globalAlpha = o.front ? 0.6 : 1;
+  ctx.translate(baseX, baseY);
+  ctx.rotate(sway);
+  ctx.translate(-baseX, -baseY);
+  drawStem(baseX, baseY, headX, headY + spriteRadius * o.s * 0.6, Math.max(1, spriteRadius * o.s * 0.08), o.front ? 0.6 : 0.95);
+  const size = spriteRadius * 2.6 * o.s;
+  ctx.drawImage(o.front ? blurSprite : headSprite, headX - size / 2, headY - size / 2, size, size);
+  ctx.restore();
+}
+
+/* ============================================================
+   6 & 8. GRASS BLADES — tapered leaf shapes that sway.
+   "mid" blades are lighter (sun shining through them);
+   "front" blades are darker and taller, mostly at the sides
+   so they frame the main dandelion instead of hiding it.
+   ============================================================ */
+let midGrass = [], frontGrass = [];
+
+function makeBlade(x, height, width, colour) {
+  return { x, height, width, colour, lean: rand(-0.45, 0.45), phase: rand(0, TAU) };
+}
+
+function buildGrass() {
+  midGrass = [];
+  frontGrass = [];
+  for (let i = 0; i < Math.round(W / 6); i++) {
+    const hue = rand(85, 110), light = rand(30, 46);
+    midGrass.push(makeBlade(rand(-10, W + 10), rand(0.10, 0.28) * H, rand(3, 7), `hsla(${hue}, 42%, ${light}%, 0.92)`));
+  }
+  for (let i = 0; i < Math.round(W / 16); i++) {
+    const x = rand(-20, W + 20);
+    const edge = Math.abs(x / W - 0.5) * 2;              // 0 at centre … 1 at the edges
+    const height = rand(0.12, lerp(0.22, 0.6, edge)) * H;
+    const hue = rand(100, 125), light = rand(15, 24);
+    frontGrass.push(makeBlade(x, height, rand(6, 13), `hsla(${hue}, 40%, ${light}%, 0.97)`));
+  }
+  midGrass.sort((a, b) => a.height - b.height);
+}
+
+function drawBlade(b, time, sunRim) {
+  const sway = wind(time) + Math.sin(time / 1500 + b.phase) * 0.05 * MOTION;
+  const bend = b.lean + sway;
+  const baseY = H + 6;
+  const tipX = b.x + bend * b.height;
+  const tipY = baseY - b.height + Math.abs(bend) * b.height * 0.25; // leaning blades droop a little
+  const cx = b.x + bend * b.height * 0.3;
+  const cy = baseY - b.height * 0.55;
+
+  ctx.fillStyle = b.colour;
+  ctx.beginPath();
+  ctx.moveTo(b.x - b.width / 2, baseY);
+  ctx.quadraticCurveTo(cx - b.width * 0.35, cy, tipX, tipY);
+  ctx.quadraticCurveTo(cx + b.width * 0.35, cy, b.x + b.width / 2, baseY);
+  ctx.closePath();
+  ctx.fill();
+
+  // A thin golden edge where the low sun catches the blade.
+  ctx.strokeStyle = sunRim;
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(b.x - b.width / 2, baseY);
+  ctx.quadraticCurveTo(cx - b.width * 0.35, cy, tipX, tipY);
+  ctx.stroke();
+}
+
+/* ============================================================
+   10. LIGHT SPECKS — warm glowing dots drifting slowly upward,
+   gently blinking, like fireflies or dust in sunlight.
+   ============================================================ */
+let glowSprite = null;
+let specks = [];
+
+function buildSpecks() {
+  // One soft glowing dot, drawn once and reused for every speck.
+  glowSprite = makeLayer((g) => {
+    const glow = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    glow.addColorStop(0.00, "rgba(255, 255, 250, 1)");
+    glow.addColorStop(0.20, "rgba(255, 245, 225, 0.75)");
+    glow.addColorStop(1.00, "rgba(255, 235, 220, 0)");
+    g.fillStyle = glow;
+    g.fillRect(0, 0, 64, 64);
+  }, 64, 64);
+
+  specks = [];
+  const count = Math.round(Math.min(40, (W * H) / 26000));
+  for (let i = 0; i < count; i++) {
+    specks.push({
+      x: rand(0, W), y: rand(0, H),
+      size: rand(2, 6),
+      rise: rand(4, 14),               // pixels per second upwards
+      wobble: rand(0, TAU),
+      blink: rand(0.4, 1.2),
+    });
+  }
+}
+
+function drawSpecks(time, dt) {
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";  // glows add up, like real light
+  for (const s of specks) {
+    s.y -= s.rise * dt * MOTION;
+    s.x += Math.sin(time / 2000 + s.wobble) * 6 * dt * MOTION + wind(time) * 30 * dt;
+    if (s.y < -20) { s.y = H + 20; s.x = rand(0, W); }
+    if (s.x < -20) s.x = W + 20;
+    if (s.x > W + 20) s.x = -20;
+    ctx.globalAlpha = 0.25 + 0.6 * Math.pow(Math.sin(time / 1000 * s.blink + s.wobble) * 0.5 + 0.5, 2);
+    ctx.drawImage(glowSprite, s.x - s.size, s.y - s.size, s.size * 2, s.size * 2);
+  }
+  ctx.restore();
+}
+
+/* ============================================================
+   11. DUSK GLOW — a soft pink wash from the sunset over everything.
+   ============================================================ */
+function drawGoldenGlow() {
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  const r = Math.max(W, H) * 0.7;
+  const glow = ctx.createRadialGradient(SUN.x, SUN.y, 0, SUN.x, SUN.y, r);
+  glow.addColorStop(0, "rgba(255, 160, 170, 0.28)");
+  glow.addColorStop(0.5, "rgba(255, 170, 190, 0.08)");
+  glow.addColorStop(1, "rgba(255, 170, 190, 0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
+/* ============================================================
+   Setting up the scene (called again whenever the window size changes)
+   ============================================================ */
+let skyLayer, cloudLayer, meadowLayer;
+
+function setupScene() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2); // cap at 2 to keep phones fast
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+  HORIZON = H * 0.64;
+  SUN = { x: W * 0.62, y: HORIZON - H * 0.005 };
+
+  buildSpecks();              // first, because the sparkle stars reuse its glow
+  skyLayer = makeLayer(paintSky);
+  cloudLayer = makeLayer(paintClouds, W + 80, H); // a bit wider so it can drift
+  meadowLayer = makeLayer(paintMeadow);
+  buildStars();
+  buildGrass();
+  buildOtherDandelions();
+  buildButterflies();
+}
+
+/* Paint everything that sits BEHIND the main dandelion. */
+function drawBackground(time, dt) {
+  ctx.drawImage(skyLayer, 0, 0, W, H);
+  drawStars(time);
+  const drift = Math.sin(time / 30000) * 40 * MOTION - 40;    // clouds slide very slowly
+  ctx.drawImage(cloudLayer, drift, 0, W + 80, H);
+  ctx.drawImage(meadowLayer, 0, 0, W, H);
+  for (const o of others) if (!o.front) drawOtherDandelion(o, time);
+  for (const b of midGrass) drawBlade(b, time, "rgba(230, 240, 180, 0.2)");
+}
+
+/* Paint everything IN FRONT of the main dandelion. */
+function drawForeground(time, dt) {
+  for (const b of frontGrass) drawBlade(b, time, "rgba(240, 200, 210, 0.3)");
+  for (const o of others) if (o.front) drawOtherDandelion(o, time);
+  drawSpecks(time, dt);
+  drawGoldenGlow();
+}
+
+</script>
+  <script>
+/* ===== butterflies.js ===== */
+/* ============================================================
+   Dandelion Wish — butterflies.js: a few glowing butterflies
+   ------------------------------------------------------------
+   Each butterfly is a soft, glowing golden silhouette (like a
+   little lantern) that wanders slowly over the meadow, flapping.
+   It's drawn in code: four rounded wings and a thin body, all in
+   one warm colour, with a golden glow around it. Flapping =
+   squashing the wings sideways and back again, quickly.
+   ============================================================ */
+
+const BUTTERFLY_COUNT = 5;
+const BUTTERFLY_COLOUR = "rgba(255, 238, 150, 0.97)";  // pale glowing gold
+const BUTTERFLY_GLOW = "rgba(255, 210, 90, 0.95)";
+
+let butterflies = [];
+
+function buildButterflies() {
+  butterflies = [];
+  for (let i = 0; i < BUTTERFLY_COUNT; i++) {
+    butterflies.push({
+      x: rand(0.1, 0.9) * W,
+      y: rand(0.35, 0.85) * H,
+      heading: rand(0, TAU),                  // which way it's flying
+      speed: rand(28, 45),                    // pixels per second
+      size: rand(12, 16) * Math.min(1.3, Math.max(0.85, W / 900)),
+      flapSpeed: rand(9, 13),                 // wing beats
+      phase: rand(0, TAU),
+    });
+  }
+}
+
+// Move one butterfly: drift in a wobbly direction, and turn back
+// toward the middle of the meadow if it wanders too far.
+function moveButterfly(b, time, dt) {
+  const calm = reduceMotion ? 0.35 : 1;
+  b.heading += Math.sin(time / 900 + b.phase) * 1.6 * dt;   // lazy wandering
+
+  // Keep inside a comfortable area (the meadow and lower sky).
+  const left = W * 0.05, right = W * 0.95, top = H * 0.3, bottom = H * 0.9;
+  if (b.x < left || b.x > right || b.y < top || b.y > bottom) {
+    const toCentre = Math.atan2(H * 0.6 - b.y, W / 2 - b.x);
+    let turn = toCentre - b.heading;
+    turn = Math.atan2(Math.sin(turn), Math.cos(turn));      // shortest way round
+    b.heading += turn * Math.min(1, dt * 1.5);
+  }
+
+  const bob = Math.sin(time / 1000 * b.flapSpeed * 0.5 + b.phase) * 10; // little up-down hops
+  b.x += (Math.cos(b.heading) * b.speed + wind(time) * 200) * dt * calm;
+  b.y += (Math.sin(b.heading) * b.speed * 0.6 + bob) * dt * calm;
+}
+
+// The two wings on the right side (top and bottom), as one soft shape.
+// flap squashes them sideways: 1 = wide open, small = nearly closed.
+function wingPath(s, flap) {
+  const p = new Path2D();
+  // Top wing: a big rounded shape
+  p.moveTo(0, -s * 0.05);
+  p.bezierCurveTo(s * 0.2 * flap, -s * 1.05, s * 1.25 * flap, -s * 1.05, s * 1.0 * flap, -s * 0.25);
+  p.bezierCurveTo(s * 0.9 * flap, s * 0.02, s * 0.35 * flap, s * 0.05, 0, s * 0.05);
+  // Bottom wing: smaller and rounder
+  p.moveTo(0, s * 0.05);
+  p.bezierCurveTo(s * 0.6 * flap, s * 0.0, s * 0.95 * flap, s * 0.55, s * 0.55 * flap, s * 0.75);
+  p.bezierCurveTo(s * 0.3 * flap, s * 0.88, s * 0.08 * flap, s * 0.5, 0, s * 0.3);
+  return p;
+}
+
+function drawButterfly(b, time) {
+  // Wings go from wide open (1) to nearly closed (0.15) and back.
+  const beat = Math.sin(time / 1000 * b.flapSpeed * (reduceMotion ? 0.4 : 1) + b.phase);
+  const flap = 0.15 + 0.85 * Math.abs(beat);
+  const s = b.size;
+
+  ctx.save();
+  ctx.translate(b.x, b.y);
+  ctx.rotate(Math.cos(b.heading) * 0.35);   // lean the way it's flying
+  ctx.shadowColor = BUTTERFLY_GLOW;
+  ctx.shadowBlur = 14 * DPR;
+  ctx.fillStyle = BUTTERFLY_COLOUR;
+  ctx.fill(wingPath(s, flap));     // right wings
+  ctx.fill(wingPath(s, -flap));    // left wings (mirrored)
+  // Thin body
+  ctx.strokeStyle = BUTTERFLY_COLOUR;
+  ctx.lineCap = "round";
+  ctx.lineWidth = Math.max(1.2, s * 0.13);
+  ctx.beginPath();
+  ctx.moveTo(0, -s * 0.3);
+  ctx.lineTo(0, s * 0.5);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawButterflies(time, dt) {
+  for (const b of butterflies) {
+    moveButterfly(b, time, dt);
+    drawButterfly(b, time);
+  }
+}
+
+</script>
+  <script>
+/* ===== seeds.js ===== */
+/* ============================================================
+   Dandelion Wish — seeds.js: wish letters and flying seeds
+   ------------------------------------------------------------
+   Two jobs:
+   1. Take the wish ("I wish for a sunny day") and stick one
+      LETTER on each seed: I, w, i, s, h, f, o, r …
+   2. When a seed is released, turn it into a "flyer" that drifts
+      up and away on the wind, carrying its letter.
+   (Inside the code a seed's letter is still called its "word".)
+   ============================================================ */
+
+/* ---------- 1. Letters onto seeds ---------- */
+
+const MAX_SEEDS = 90; // a long wish (up to 80 letters) gets a fuller flower
+
+// Turn the wish text into a list of letters, skipping the spaces.
+// (Array.from keeps emoji in one piece instead of breaking them.)
+function wishToPieces(text) {
+  return Array.from(text).filter((ch) => ch.trim() !== "");
+}
+
+// The order seeds will fly off in. We shuffle all the seeds, then put the
+// letters in evenly spaced spots, IN ORDER — so your wish drifts away in the
+// same order you wrote it, with a few blank seeds in between.
+let releaseQueue = [];
+
+function attachWish(text) {
+  const pieces = wishToPieces(text);
+
+  // Make sure there are enough seeds: one per letter, plus some blank ones.
+  const needed = Math.min(MAX_SEEDS, Math.max(SEED_COUNT, pieces.length + 10));
+  if (seeds.length !== needed) seeds = buildSeedSphere(needed);
+
+  // Shuffle the seeds (the "Fisher–Yates" shuffle).
+  const order = seeds.slice();
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+
+  for (const seed of order) seed.word = "";
+  const gap = pieces.length ? order.length / pieces.length : 0;
+  pieces.forEach((piece, i) => {
+    // Start a little way in, so a blank seed or two leads the way.
+    order[Math.min(order.length - 1, Math.floor(i * gap + gap * 0.3))].word = piece;
+  });
+
+  releaseQueue = order;
+  return pieces.length;
+}
+
+function seedsLeft() {
+  return releaseQueue.length;
+}
+
+/* ---------- 2. Flying seeds ---------- */
+
+let flyers = [];
+
+// Break the next seed off the head and send it flying.
+function releaseNextSeed() {
+  const seed = releaseQueue.shift();
+  if (!seed) return false;
+  seed.attached = false;
+
+  // Where is the tip of this seed on screen right now? Start with its
+  // position on the head, then turn it by the stem's current sway.
+  const d = mainLayout();
+  const reach = d.radius * seed.length * 0.78;
+  let x = d.headX + seed.dir.x * reach;
+  let y = d.headY + seed.dir.y * reach;
+  const dx = x - d.baseX, dy = y - d.baseY;
+  const c = Math.cos(mainSway), s = Math.sin(mainSway);
+  x = d.baseX + dx * c - dy * s;
+  y = d.baseY + dx * s + dy * c;
+
+  flyers.push({
+    x, y,
+    // A little push outwards from the head, plus a lift upwards.
+    vx: seed.dir.x * d.radius * 1.2 + rand(-10, 10),
+    vy: seed.dir.y * d.radius * 0.8 - rand(10, 30),
+    // Start pointing the way it grew, then slowly turn upright like a parachute.
+    rot: Math.atan2(seed.dir.y, seed.dir.x) + Math.PI / 2,
+    phase: rand(0, TAU),
+    speed: rand(0.75, 1.25),      // so they don't all move as one block
+    age: 0,
+    size: d.radius,               // matches the size of the head they came from
+    word: seed.word,
+    alpha: 1,
+    // Each hair a slightly different length, so the tuft looks soft, not stiff.
+    hairs: Array.from({ length: 16 }, () => rand(0.7, 1.1)),
+  });
+  return true;
+}
+
+// Move every flyer a little. dt = seconds since the last frame.
+function updateFlyers(time, dt) {
+  // The wind: mostly up and to the right, gently changing over time.
+  // Speeds are a fraction of the screen size so it takes ~6–10 s on any screen.
+  const gust = 1 + Math.sin(time / 3100) * 0.25;
+  const windX = (W / 11) * gust + breeze.mouse * W * 0.08;
+  const windY = -(H / 16) * (1 + Math.sin(time / 4300) * 0.2);
+
+  for (const f of flyers) {
+    f.age += dt;
+    if (reduceMotion) {
+      // Calm version: rise straight up and fade away, no swirling.
+      f.y -= (H / 14) * dt;
+      f.alpha = Math.max(0, 1 - f.age / 5);
+      f.rot *= 0.9;
+      continue;
+    }
+    // Ease the seed's speed toward the wind (like air resistance).
+    const ease = Math.min(1, dt * 0.7);
+    f.vx += (windX * f.speed - f.vx) * ease;
+    f.vy += (windY * f.speed - f.vy) * ease;
+    // Side-to-side swaying, a bit like a falling leaf (but going up).
+    const sway = Math.sin(f.age * 1.4 + f.phase) * 18;
+    f.x += (f.vx + sway) * dt;
+    f.y += f.vy * dt;
+    // Turn upright, then rock gently.
+    const target = Math.sin(f.age * 1.1 + f.phase) * 0.3;
+    f.rot += (target - f.rot) * Math.min(1, dt * 1.5);
+  }
+  // Forget seeds that have left the screen (or faded out).
+  flyers = flyers.filter((f) => f.alpha > 0.01 && f.y > -80 && f.x < W + 100 && f.x > -100);
+}
+
+// Draw one flying seed as glowing line art: a little starburst tuft on
+// top, and a long, gently curving tail with the seed (a bright dot) at the end.
+function drawFlyer(f) {
+  // Seeds get slightly bigger as they float toward us.
+  const scale = 0.8 + Math.min(0.3, f.age * 0.05);
+  const r = f.size * scale;
+  const tail = r * 0.6;
+  const hairLen = r * 0.26;
+  // The tail bends to one side and slowly waves.
+  const curl = (f.phase > Math.PI ? 1 : -1) * (0.25 + Math.sin(f.age * 1.6 + f.phase) * 0.12);
+
+  ctx.save();
+  ctx.globalAlpha = f.alpha;
+  ctx.translate(f.x, f.y);
+  ctx.rotate(f.rot);
+  ctx.lineCap = "round";
+  ctx.shadowColor = "rgba(255, 255, 255, 0.95)";
+  ctx.shadowBlur = 6 * DPR;
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
+
+  // Tail
+  ctx.lineWidth = Math.max(0.7, r * 0.008);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.quadraticCurveTo(tail * curl * 0.2, tail * 0.55, tail * curl, tail);
+  ctx.stroke();
+
+  // Tuft: fine hairs bursting upward and outward
+  const hairs = f.hairs.length;
+  const spread = Math.PI * 1.3;
+  ctx.lineWidth = Math.max(0.5, r * 0.005);
+  ctx.beginPath();
+  for (let h = 0; h < hairs; h++) {
+    const t = h / (hairs - 1);
+    const a = -Math.PI / 2 - spread / 2 + spread * t + Math.sin(f.age * 3 + h) * 0.04;
+    const len = hairLen * f.hairs[h];
+    const bend = (t - 0.5) * len * 0.4;
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(
+      Math.cos(a) * len * 0.55 + Math.cos(a + Math.PI / 2) * bend,
+      Math.sin(a) * len * 0.55 + Math.sin(a + Math.PI / 2) * bend,
+      Math.cos(a) * len, Math.sin(a) * len
+    );
+  }
+  ctx.stroke();
+
+  // Bright dots: where the hairs meet, and the seed at the end of the tail
+  ctx.fillStyle = "rgba(255, 255, 250, 1)";
+  ctx.beginPath();
+  ctx.arc(0, 0, Math.max(1, r * 0.014), 0, TAU);
+  ctx.arc(tail * curl, tail, Math.max(1.2, r * 0.016), 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}
+
+// The word under a flying seed: drawn upright (not rotated) so it's easy to read.
+function drawWord(f) {
+  const scale = 0.8 + Math.min(0.3, f.age * 0.05);
+  const tail = f.size * scale * 0.6;
+  ctx.globalAlpha = f.alpha * Math.min(1, f.age * 4); // fades in quickly as it leaves
+  ctx.fillText(f.word, f.x, f.y + tail + 6);
+}
+
+// showWords = false is used for the postcard snapshot, so the wish stays
+// private unless the visitor chooses to put it on.
+function drawFlyers(showWords = true) {
+  // Blank seeds first, then seeds with words, then all the words on top,
+  // so the wish never gets hidden behind fluff.
+  for (const f of flyers) if (!f.word) drawFlyer(f);
+  for (const f of flyers) if (f.word) drawFlyer(f);
+  if (!showWords) return;
+
+  ctx.save();
+  // Letters in the soft italic heading font, small and delicate.
+  ctx.font = `italic 600 ${Math.round(Math.max(15, Math.min(20, W / 70)))}px "Cormorant Garamond", Georgia, serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.shadowColor = "rgba(50, 28, 76, 0.9)";
+  ctx.shadowBlur = 8 * DPR;
+  ctx.fillStyle = "rgba(255, 252, 245, 1)";
+  for (const f of flyers) if (f.word) drawWord(f);
+  ctx.restore();
+}
+
+</script>
+  <script>
+/* ===== mic.js ===== */
+/* ============================================================
+   Dandelion Wish — mic.js: hearing your breath
+   ------------------------------------------------------------
+   We ask the browser for the microphone, then many times a second
+   we look at the SHAPE of the sound (how loud, how deep, how
+   hiss-like). The sound itself is never recorded, saved or sent
+   anywhere — it's turned into a few numbers and thrown away.
+
+   How do we tell a BLOW from other noise?
+   Blowing on a microphone makes a special sound: a deep, rumbly
+   "whoosh" with no musical notes in it. So a sound only counts
+   as a blow when ALL of these are true:
+
+     1. LOUD   – clearly louder than your room normally is
+                 (we keep learning how noisy the room is, so a
+                 fan or traffic outside doesn't count)
+     2. DEEP   – most of its energy is low (below 500 Hz).
+                 Voices, music, clinks and beeps aren't mostly low.
+     3. HISSY  – no clear notes in it. A voice or song has notes
+                 (pitch); a blow is shapeless noise.
+     4. LONG   – it keeps going for about a quarter of a second,
+                 so a clap, knock or cough doesn't count.
+   ============================================================ */
+
+// ---- Settings you can tweak ----
+const BLOW = {
+  minLoudness: 0.02, // how loud a blow must be at least (0…1). Bigger = need to blow harder.
+  aboveRoom: 4,      // …and how many times louder than the room's normal noise.
+  deepShare: 0.45,   // how much of the sound must be deep "whoosh" (0…1). Bigger = stricter.
+  hissiness: 0.75,   // how note-free it must be (0…1). Bigger = stricter about voices/music.
+  holdTime: 0.3,     // seconds it must keep going. Bigger = ignores more short noises.
+};
+
+const mic = {
+  supported: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+  active: false,      // is the mic switched on right now?
+  denied: false,      // did the visitor say no (or is there no mic)?
+  problem: "",        // if it didn't work: a short reason, e.g. "blocked" or "no-mic"
+  level: 0,           // 0 (quiet) … 1 (loud), smoothed
+  blowing: 0,         // 0 when not blowing; otherwise how hard (0…1)
+
+  stream: null,
+  audio: null,
+  analyser: null,
+  samples: null,
+  floor: 0.01,        // the room's normal loudness, learned as we go
+  blowFor: 0,         // how long (seconds) it has sounded like a blow
+  gapFor: 0,          // a tiny pause inside a blow is forgiven
+};
+
+// Switch the microphone on. Returns true if it worked.
+async function startMic() {
+  if (mic.active) return true;
+  if (!mic.supported) { mic.denied = true; mic.problem = "insecure"; return false; }
+  try {
+    mic.stream = await navigator.mediaDevices.getUserMedia({
+      // Turn off the "helpful" processing: it would try to remove the
+      // very breath noise we want to hear.
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+    });
+  } catch (err) {
+    // Work out WHY, so we can tell the visitor how to fix it.
+    if (err.name === "NotFoundError" || err.name === "OverconstrainedError") mic.problem = "no-mic";
+    else if (err.name === "NotReadableError") mic.problem = "busy";
+    else if (err.name === "NotAllowedError" || err.name === "SecurityError") mic.problem = window.top !== window.self ? "embedded" : "blocked";
+    else mic.problem = "other";
+    console.warn("Microphone problem:", err.name, err.message);
+    mic.denied = mic.problem === "no-mic";   // only give up for good if there's no mic at all
+    return false;
+  }
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  mic.audio = new AudioCtx();
+  const source = mic.audio.createMediaStreamSource(mic.stream);
+  mic.analyser = mic.audio.createAnalyser();
+  mic.analyser.fftSize = 8192;              // splits the sound into 4096 narrow "pitch bands" (~6 Hz each)
+  mic.analyser.smoothingTimeConstant = 0.5;
+  source.connect(mic.analyser);   // note: NOT connected to the speakers
+  mic.samples = new Float32Array(mic.analyser.fftSize);
+  mic.bands = new Float32Array(mic.analyser.frequencyBinCount);
+  mic.floor = 0;
+  mic.blowFor = 0;
+  mic.gapFor = 0;
+  mic.listening = 0;              // time since the mic started (to measure the room first)
+  mic.active = true;
+  mic.denied = false;
+  mic.problem = "";
+  return true;
+}
+
+// Switch the microphone fully off (the browser's mic icon goes away).
+function stopMic() {
+  if (mic.stream) mic.stream.getTracks().forEach((track) => track.stop());
+  if (mic.audio) mic.audio.close();
+  mic.stream = mic.audio = mic.analyser = null;
+  mic.active = false;
+  mic.level = 0;
+  mic.blowing = 0;
+}
+
+// Has the visitor already said yes on an earlier visit? Then we can start
+// the mic without showing our note again. (Not every browser can tell us.)
+async function micAlreadyAllowed() {
+  try {
+    const status = await navigator.permissions.query({ name: "microphone" });
+    return status.state === "granted";
+  } catch {
+    return false;
+  }
+}
+
+// Look at the sound right now and decide: is this a blow?
+// Call once per frame with dt = seconds since the last frame.
+function updateMic(dt) {
+  if (!mic.active || !mic.analyser) return;
+
+  // --- 1. LOUDNESS ("RMS" = the average size of the sound wave right now)
+  mic.analyser.getFloatTimeDomainData(mic.samples);
+  let sum = 0;
+  for (const v of mic.samples) sum += v * v;
+  const rms = Math.sqrt(sum / mic.samples.length);
+  mic.level += (Math.min(1, rms / 0.1) - mic.level) * Math.min(1, dt * 8);
+
+  // First half second: just learn how loud the room is. Don't count anything yet.
+  mic.listening += dt;
+  if (mic.listening < 0.5) {
+    mic.floor = Math.max(mic.floor * 0.9, rms);
+    mic.blowing = 0;
+    return;
+  }
+
+  // --- 2 & 3. DEEP and HISSY: look at the sound's pitch bands.
+  // mic.bands[i] is how strong the sound is at pitch i×bandHz, in decibels.
+  mic.analyser.getFloatFrequencyData(mic.bands);
+  const bandHz = mic.audio.sampleRate / mic.analyser.fftSize;
+  const power = (i) => Math.pow(10, mic.bands[i] / 10);   // decibels → plain strength
+
+  let low = 0, total = 0;
+  for (let i = 1; i * bandHz < 8000; i++) {
+    const p = power(i);
+    total += p;
+    if (i * bandHz < 500) low += p;
+  }
+  const deep = total > 0 ? low / total : 0;
+
+  // Hissiness: how much of the sound's energy is in sharp peaks ("notes")?
+  // A voice, a song or a beep puts its energy in narrow peaks that stand far
+  // above the pitch bands around them. A blow spreads it out evenly.
+  let noteEnergy = 0, midEnergy = 0;
+  const from = Math.ceil(80 / bandHz), to = Math.floor(3000 / bandHz);
+  for (let i = from; i <= to; i++) {
+    const p = power(i);
+    // Average of the neighbours 35–60 Hz away on both sides (not the very
+    // next bands, which a note's own peak spills into).
+    let near = 0;
+    for (let k = 6; k <= 10; k++) near += power(i - k) + power(i + k);
+    near /= 10;
+    midEnergy += p;
+    if (p > near * 4) noteEnergy += p;   // this band is a sharp peak = part of a note
+  }
+  const hissy = midEnergy > 0 ? 1 - noteEnergy / midEnergy : 0; // 1 = pure hiss, 0 = all notes
+
+  const loudEnough = rms > Math.max(BLOW.minLoudness, mic.floor * BLOW.aboveRoom);
+  const soundsLikeBlow = loudEnough && deep > BLOW.deepShare && hissy > BLOW.hissiness;
+
+  // --- 4. LONG enough: count how long it has sounded like a blow.
+  if (soundsLikeBlow) {
+    mic.blowFor += dt;
+    mic.gapFor = 0;
+  } else {
+    mic.gapFor += dt;
+    if (mic.gapFor > 0.08) mic.blowFor = 0;   // forgive a tiny wobble, nothing longer
+    // Keep learning the room's normal noise (only from sounds that aren't blows).
+    mic.floor += (rms - mic.floor) * Math.min(1, dt * 0.3);
+  }
+
+  const strength = Math.min(1, rms / (BLOW.minLoudness * 6));
+  mic.blowing = mic.blowFor >= BLOW.holdTime ? Math.max(0.1, strength) : 0;
+
+  // Handy while tuning: open the browser console and type  mic.debug = true
+  if (mic.debug) console.log(`loud ${rms.toFixed(3)}  deep ${deep.toFixed(2)}  hissy ${hissy.toFixed(2)}  room ${mic.floor.toFixed(3)}  ${mic.blowing ? "BLOW!" : ""}`);
+}
+
+</script>
+  <script>
+/* ===== share.js ===== */
+/* ============================================================
+   Dandelion Wish — share.js: the "wish postcard"
+   ------------------------------------------------------------
+   Just after the last seed leaves the flower, script.js takes a
+   snapshot of the canvas (bare stem, seeds still in the air).
+   Here we turn that snapshot into a tall postcard and add some
+   writing on top. On phones it's story-shaped (1080 × 1920);
+   on wider screens it's a 4:5 post (1080 × 1350), which keeps
+   more of the meadow in the picture.
+   ============================================================ */
+
+const SITE_NAME = "Dandelion Wish";
+
+let snapshot = null; // a copy of the canvas, taken mid-flight
+
+function takeSnapshot() {
+  snapshot = document.createElement("canvas");
+  snapshot.width = canvas.width;
+  snapshot.height = canvas.height;
+  snapshot.getContext("2d").drawImage(canvas, 0, 0);
+}
+
+// The link to show and share: the real web address once it's online.
+function siteLink() {
+  return location.protocol.startsWith("http") ? location.origin + location.pathname : "";
+}
+
+// Wrap text onto several lines so it fits a given width.
+function wrapLines(g, text, maxWidth) {
+  const lines = [];
+  let line = "";
+  for (const word of text.split(/\s+/)) {
+    const test = line ? line + " " + word : word;
+    if (g.measureText(test).width > maxWidth && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = test;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+// Build the postcard. wishText is "" unless the visitor chose to include it.
+async function makePostcard(wishText) {
+  // Make sure our fonts are ready before we write with them on the canvas.
+  await Promise.all([
+    document.fonts.load('italic 400 100px "Cormorant Garamond"'),
+    document.fonts.load('600 40px "Nunito"'),
+  ]).catch(() => {});
+
+  const tallScreen = !snapshot || snapshot.height > snapshot.width;
+  const POSTCARD = { w: 1080, h: tallScreen ? 1920 : 1350 };
+  const card = document.createElement("canvas");
+  card.width = POSTCARD.w;
+  card.height = POSTCARD.h;
+  const top = POSTCARD.h * 0.135; // where the heading sits
+  const g = card.getContext("2d");
+
+  // 1. The snapshot, scaled to fill the card and centred on the flower ("cover" fit).
+  if (snapshot) {
+    const scale = Math.max(POSTCARD.w / snapshot.width, POSTCARD.h / snapshot.height);
+    const w = snapshot.width * scale;
+    const h = snapshot.height * scale;
+    g.drawImage(snapshot, (POSTCARD.w - w) / 2, (POSTCARD.h - h) / 2, w, h);
+  }
+
+  // 2. A soft darker band at the top so the writing is easy to read.
+  const shade = g.createLinearGradient(0, 0, 0, POSTCARD.h * 0.4);
+  shade.addColorStop(0, "rgba(30, 30, 70, 0.45)");
+  shade.addColorStop(1, "rgba(30, 30, 70, 0)");
+  g.fillStyle = shade;
+  g.fillRect(0, 0, POSTCARD.w, POSTCARD.h * 0.4);
+
+  g.textAlign = "center";
+  g.shadowColor = "rgba(50, 30, 80, 0.55)";
+  g.shadowBlur = 24;
+  g.fillStyle = "rgba(255, 252, 245, 0.97)";
+
+  // 3. "I made a wish"
+  g.font = 'italic 400 118px "Cormorant Garamond", Georgia, serif';
+  g.fillText("I made a wish", POSTCARD.w / 2, top);
+
+  // 4. The wish itself, only if they chose to include it.
+  if (wishText) {
+    g.font = 'italic 400 64px "Cormorant Garamond", Georgia, serif';
+    const lines = wrapLines(g, `“${wishText}”`, POSTCARD.w - 180);
+    lines.forEach((line, i) => g.fillText(line, POSTCARD.w / 2, top + 110 + i * 74));
+  }
+
+  // 5. Site name (and link) at the bottom.
+  const bottom = g.createLinearGradient(0, POSTCARD.h * 0.8, 0, POSTCARD.h);
+  bottom.addColorStop(0, "rgba(20, 40, 20, 0)");
+  bottom.addColorStop(1, "rgba(20, 40, 20, 0.5)");
+  g.shadowBlur = 0;
+  g.fillStyle = bottom;
+  g.fillRect(0, POSTCARD.h * 0.8, POSTCARD.w, POSTCARD.h * 0.2);
+  g.shadowBlur = 18;
+  g.fillStyle = "rgba(255, 252, 245, 0.95)";
+  g.font = '600 40px "Nunito", system-ui, sans-serif';
+  g.fillText(`🌬️  ${SITE_NAME}`, POSTCARD.w / 2, POSTCARD.h - 130);
+  const link = siteLink().replace(/^https?:\/\//, "").replace(/\/$/, "");
+  if (link) {
+    g.font = '400 32px "Nunito", system-ui, sans-serif';
+    g.fillStyle = "rgba(255, 252, 245, 0.8)";
+    g.fillText(link, POSTCARD.w / 2, POSTCARD.h - 80);
+  }
+
+  return card;
+}
+
+// Turn a canvas into an image file.
+function canvasToFile(card) {
+  return new Promise((resolve) => {
+    card.toBlob((blob) => resolve(new File([blob], "my-wish.png", { type: "image/png" })), "image/png");
+  });
+}
+
+// Can this device open its own share sheet with an image? (Mostly phones.)
+function canShareImages() {
+  try {
+    const test = new File([new Blob(["x"], { type: "image/png" })], "x.png", { type: "image/png" });
+    return !!(navigator.canShare && navigator.canShare({ files: [test] }));
+  } catch {
+    return false;
+  }
+}
+
+async function shareImage(file) {
+  const link = siteLink();
+  await navigator.share({
+    files: [file],
+    title: SITE_NAME,
+    text: "I made a wish 🌬️" + (link ? " " + link : ""),
+  });
+}
+
+function downloadImage(file) {
+  const url = URL.createObjectURL(file);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = file.name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+async function copyLink() {
+  const link = siteLink() || location.href;
+  try {
+    await navigator.clipboard.writeText(link);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+</script>
+  <script>
+/* ===== script.js ===== */
+/* ============================================================
+   Dandelion Wish — script.js: what happens, and when
+   ------------------------------------------------------------
+   The experience moves through four "states":
+
+     "ready"     – a full dandelion, waiting for a wish
+     "flying"    – seeds are blowing away
+     "done"      – the last seed has gone: "Your wish is on its way."
+     "regrowing" – a new dandelion blooms, then back to "ready"
+
+   This file listens to the visitor (typing, blowing,
+   buttons), switches between those states, and runs the
+   animation loop that draws everything 60 times a second.
+   ============================================================ */
+
+// Grab the bits of the page we need to talk to.
+const $ = (id) => document.getElementById(id);
+const ui = {
+  title: $("title"), wishBox: $("wishBox"), wish: $("wish"), counter: $("counter"),
+  hint: $("hint"), micBtn: $("micBtn"), micNote: $("micNote"),
+  endButtons: $("endButtons"), againBtn: $("againBtn"), shareBtn: $("shareBtn"),
+  micDialog: $("micDialog"), micAllow: $("micAllow"), micNotNow: $("micNotNow"),
+  shareDialog: $("shareDialog"), sharePreview: $("sharePreview"), includeWish: $("includeWish"),
+  shareNative: $("shareNative"), shareDownload: $("shareDownload"), shareCopy: $("shareCopy"),
+  shareClose: $("shareClose"), shareStatus: $("shareStatus"),
+};
+
+const HINT_READY = "Now blow gently on the dandelion 🌬️";
+const HINT_NEED_MIC = "Turn on your microphone, then blow 🌬️";
+const HINT_EMPTY = "Add a wish first?";
+
+let state = "ready";
+let grow = 1;              // regrow animation progress, 0 … 1
+let wishText = "";         // what they typed (kept only in this page, never sent anywhere)
+let micWanted = false;     // did they turn the mic on? Then we turn it back on for the next wish.
+let nudgedAt = 0;          // when we last showed "Add a wish first?"
+let releaseCredit = 0;     // seeds are released bit by bit; this collects the fractions
+let gustRate = 0;          // after one blow: seeds per second still to send (0 = no gust)
+let snapshotAt = 0;        // when to take the postcard snapshot
+
+/* ============================================================
+   Small helpers for the words on screen
+   ============================================================ */
+function setHint(text) {
+  ui.hint.textContent = text;
+}
+
+// Fade the title out, swap its words, fade it back in.
+function setTitle(text) {
+  ui.title.classList.add("away");
+  setTimeout(() => {
+    ui.title.textContent = text;
+    ui.title.classList.remove("away");
+  }, 700);
+}
+
+// Pick the right hint and show/hide the mic button for the current situation.
+function refreshReadyHints() {
+  if (state !== "ready") return;
+  const hasWish = wishText.trim().length > 0;
+  if (!hasWish) setHint(Date.now() - nudgedAt < 4000 ? HINT_EMPTY : "");
+  else setHint(mic.active ? HINT_READY : HINT_NEED_MIC);
+  // Blowing is the only way now, so keep offering the mic button until it's on.
+  ui.micBtn.hidden = !(hasWish && mic.supported && !mic.active && mic.problem !== "no-mic");
+}
+
+/* ============================================================
+   Typing the wish
+   ============================================================ */
+ui.wish.addEventListener("input", () => {
+  wishText = ui.wish.value;
+  ui.counter.textContent = `${wishText.length} / 80`;
+  attachWish(wishText);
+  refreshReadyHints();
+});
+
+// Pressing Enter/"Done" just closes the phone keyboard.
+ui.wish.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") ui.wish.blur();
+});
+
+// If they allowed the mic on an earlier visit, switch it on as soon as they start typing.
+ui.wish.addEventListener("focus", async () => {
+  if (!mic.active && (await micAlreadyAllowed())) turnOnMic();
+}, { once: true });
+
+/* ============================================================
+   Releasing seeds (when you blow)
+   ============================================================ */
+
+// An empty wish still works, but the first time we gently suggest adding one.
+// Returns false if we nudged instead of releasing.
+function okToRelease() {
+  if (wishText.trim() || state !== "ready") return true;
+  if (nudgedAt === 0) {
+    nudgedAt = Date.now();
+    setHint(HINT_EMPTY);
+    ui.wish.focus({ preventScroll: true });
+    return false;
+  }
+  // After a short pause, carry on without words.
+  return Date.now() - nudgedAt > 1500;
+}
+
+function release(count) {
+  if (!(state === "ready" || state === "flying") || seedsLeft() === 0) return;
+  if (!okToRelease()) return;
+  if (state === "ready") startFlight();
+  for (let i = 0; i < count; i++) {
+    if (!releaseNextSeed()) break;
+  }
+  // The very last seed just left the flower: grab the postcard picture shortly after,
+  // while the seeds are still close by.
+  if (seedsLeft() === 0 && !snapshotAt) snapshotAt = performance.now() + 900;
+}
+
+function startFlight() {
+  state = "flying";
+  ui.wish.blur();
+  ui.wish.disabled = true;
+  ui.wishBox.classList.add("away");
+  ui.title.classList.add("away");
+  ui.micBtn.hidden = true;
+  ui.micNote.textContent = "";
+  setHint("");
+}
+
+/* ============================================================
+   The microphone
+   ============================================================ */
+async function turnOnMic() {
+  const ok = await startMic();
+  if (ok) {
+    micWanted = true;
+    ui.micNote.textContent = "";
+  } else {
+    // Say exactly what went wrong, and how to fix it.
+    const reasons = {
+      "blocked": "The microphone is blocked. Click the 🔒 or 🎤 icon in the address bar, choose Allow, then try again.",
+      "embedded": "The microphone can't be used inside this preview. Open the page in Chrome or Safari instead.",
+      "insecure": "The microphone only works from a link (https:// or http://localhost). Open the page that way.",
+      "no-mic": "No microphone was found on this device. Plug one in (or use a phone), then reload the page.",
+      "busy": "Another app is using the microphone. Close it (e.g. Zoom or Teams) and try again.",
+      "other": "The microphone didn't start. Reload the page and try again.",
+    };
+    ui.micNote.textContent = reasons[mic.problem] || reasons.other;
+  }
+  refreshReadyHints();
+  if (ok && state === "ready" && wishText.trim()) setHint("Listening… blow gently 🌬️");
+}
+
+ui.micBtn.addEventListener("click", async () => {
+  if (await micAlreadyAllowed()) return turnOnMic();
+  ui.micDialog.showModal();
+});
+ui.micAllow.addEventListener("click", () => {
+  ui.micDialog.close();
+  turnOnMic();
+});
+ui.micNotNow.addEventListener("click", () => {
+  ui.micDialog.close();   // the mic button stays, so they can change their mind
+});
+
+/* ============================================================
+   The end, and starting again
+   ============================================================ */
+function finish() {
+  state = "done";
+  stopMic();                                  // switch the mic off as promised
+  setHint("");
+  setTitle("Your wish is on its way.");
+  setTimeout(() => {
+    if (state !== "done") return;
+    ui.endButtons.hidden = false;
+    ui.againBtn.focus({ preventScroll: true });
+  }, 1400);
+}
+
+ui.againBtn.addEventListener("click", () => {
+  state = "regrowing";
+  grow = 0;
+  seeds = buildSeedSphere(SEED_COUNT);        // a brand-new seed head
+  gustRate = 0;
+  wishText = "";
+  nudgedAt = 0;
+  snapshotAt = 0;
+  ui.wish.value = "";
+  ui.counter.textContent = "0 / 80";
+  attachWish("");
+  ui.endButtons.hidden = true;
+  setTitle("Make a wish.");
+  if (micWanted) startMic();                  // already allowed, so no question this time
+});
+
+function finishRegrowing() {
+  state = "ready";
+  ui.wish.disabled = false;
+  ui.wishBox.classList.remove("away");
+  refreshReadyHints();
+  // On computers, pop the cursor straight into the box. (On phones that would
+  // throw the keyboard up over the flower, so we don't.)
+  if (window.matchMedia("(pointer: fine)").matches) ui.wish.focus({ preventScroll: true });
+}
+
+/* ============================================================
+   Sharing
+   ============================================================ */
+let postcardFile = null;
+let previewUrl = "";
+
+async function buildPostcard() {
+  const card = await makePostcard(ui.includeWish.checked ? wishText.trim() : "");
+  postcardFile = await canvasToFile(card);
+  if (previewUrl) URL.revokeObjectURL(previewUrl);
+  previewUrl = URL.createObjectURL(postcardFile);
+  ui.sharePreview.src = previewUrl;
+}
+
+ui.shareBtn.addEventListener("click", async () => {
+  ui.shareStatus.textContent = "";
+  ui.includeWish.checked = false;             // wishes are personal: off unless they choose
+  ui.includeWish.parentElement.hidden = !wishText.trim();
+  const native = canShareImages();
+  ui.shareNative.hidden = !native;            // phones get their own share sheet
+  ui.shareDownload.classList.toggle("primary", !native);
+  ui.shareDialog.showModal();
+  await buildPostcard();
+});
+
+ui.includeWish.addEventListener("change", buildPostcard);
+
+ui.shareNative.addEventListener("click", async () => {
+  try {
+    await shareImage(postcardFile);
+  } catch (err) {
+    // They closed the share sheet without sharing: that's fine, say nothing.
+    if (err.name !== "AbortError") ui.shareStatus.textContent = "Sharing didn't work — try Download instead.";
+  }
+});
+
+ui.shareDownload.addEventListener("click", () => {
+  downloadImage(postcardFile);
+  ui.shareStatus.textContent = "Saved ✓";
+});
+
+ui.shareCopy.addEventListener("click", async () => {
+  ui.shareStatus.textContent = (await copyLink()) ? "Link copied ✓" : "Couldn't copy — the link is in your address bar.";
+});
+
+ui.shareClose.addEventListener("click", () => ui.shareDialog.close());
+// Clicking the dimmed area outside the card closes it too.
+ui.shareDialog.addEventListener("click", (e) => {
+  if (e.target === ui.shareDialog) ui.shareDialog.close();
+});
+
+/* ============================================================
+   Mouse breeze (computers): moving the mouse nudges the wind.
+   ============================================================ */
+window.addEventListener("pointermove", (e) => {
+  if (e.pointerType !== "mouse" || reduceMotion) return;
+  breeze.mouse = Math.max(-1, Math.min(1, breeze.mouse + e.movementX * 0.0025));
+});
+
+/* ============================================================
+   Window size changes
+   ============================================================ */
+let resizeTimer;
+let lastWidth = window.innerWidth;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    // On phones the keyboard opening changes only the height. Repainting the
+    // whole meadow then would make it jump, so we skip that case.
+    if (window.innerWidth === lastWidth && document.activeElement === ui.wish) return;
+    lastWidth = window.innerWidth;
+    setupScene();
+  }, 150);
+});
+
+/* ============================================================
+   The animation loop
+   requestAnimationFrame asks the browser to call us right before
+   it next paints the screen (usually 60 times a second).
+   ============================================================ */
+let lastTime = performance.now();
+
+function frame(time) {
+  const dt = Math.min(0.05, Math.max(0, (time - lastTime) / 1000)); // seconds since last frame
+  lastTime = time;
+
+  // --- Listen for breath. ONE blow starts a gust that carries away
+  // every seed over about two seconds — no need to keep blowing.
+  updateMic(dt);
+  const canBlow = (state === "ready" || state === "flying") && seedsLeft() > 0;
+  if (mic.blowing > 0 && gustRate === 0 && canBlow && okToRelease()) {
+    gustRate = seedsLeft() / (reduceMotion ? 1.4 : 2);
+    releaseCredit = 1; // the first seed goes straight away
+  }
+  if (gustRate > 0) {
+    releaseCredit += gustRate * dt;
+    const n = Math.floor(releaseCredit);
+    releaseCredit -= n;
+    if (n > 0) release(n);
+    if (seedsLeft() === 0) gustRate = 0;
+  }
+
+  // --- Regrowing a new flower
+  if (state === "regrowing") {
+    grow = Math.min(1, grow + dt / (reduceMotion ? 1.2 : 2.2));
+    if (grow >= 1) finishRegrowing();
+  }
+
+  // --- The mouse breeze slowly calms down
+  breeze.mouse *= Math.max(0, 1 - dt * 1.2);
+
+  // --- Move the flying seeds; when the last one has gone, it's the end.
+  updateFlyers(time, dt);
+  if (state === "flying" && seedsLeft() === 0 && flyers.length === 0) finish();
+
+  // --- Is it time for the postcard picture? (Taken once, just after the
+  // last seed leaves.) That one frame is drawn without the words.
+  const snapshotNow = snapshotAt && time >= snapshotAt;
+
+  // --- Draw, back to front.
+  const attached = seedsLeft();
+  drawBackground(time, dt);
+  drawMainDandelion(time, { grow, breath: gustRate > 0 ? 0.6 : mic.blowing, fullness: attached / seeds.length });
+  drawButterflies(time, dt);
+  drawFlyers(!snapshotNow);
+  drawForeground(time, dt);
+
+  if (snapshotNow) {
+    takeSnapshot();
+    snapshotAt = 0;
+  }
+
+  requestAnimationFrame(frame);
+}
+
+/* ============================================================
+   Start!
+   ============================================================ */
+setupScene();
+attachWish("");
+requestAnimationFrame(frame);
+
+</script>
+</body>
+</html>
